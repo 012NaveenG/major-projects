@@ -266,6 +266,7 @@ const resetPassword = AsyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, {}, "Password reset successfully"));
 });
+
 export {
   registerUser,
   loginUser,

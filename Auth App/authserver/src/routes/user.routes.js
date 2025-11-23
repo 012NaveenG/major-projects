@@ -8,6 +8,8 @@ import {
   resetPassword,
 } from "../controllers/user.controllers.js";
 
+import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
+
 const router = Router();
 
 router.route("/register").post(registerUser);

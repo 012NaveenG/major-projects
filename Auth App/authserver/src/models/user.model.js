@@ -30,7 +30,7 @@ const userSchema = new Schema(
       trim: true,
       index: true,
       required: true,
-      unique:true
+      unique: true,
     },
     name: String,
 
@@ -69,6 +69,12 @@ const userSchema = new Schema(
     },
 
     refreshTokens: [refreshTokenSchema],
+    resetPasswordToken: {
+      type: String,
+    },
+    resetPasswordExpiry: {
+      type: Date,
+    },
   },
   { timestamps: true }
 );
@@ -97,6 +103,5 @@ userSchema.methods.generateRefreshToken = function () {
     }
   );
 };
-
 
 export const User = mongoose.model("User", userSchema);

@@ -3,7 +3,9 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { AsyncHandler } from "../utils/AsyncHandler.js";
 import bcrypt from "bcryptjs";
-import jwt, { decode } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
+import crypto from "crypto";
+import { sendEmail } from "../utils/SendEmail.js";
 
 const cookieOptions = {
   httpOnly: true,
@@ -188,4 +190,87 @@ const logoutUser = AsyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "Logout succesfully"));
 });
 
-export { registerUser, loginUser, logoutUser, regenerateAccessToken };
+const forgotPassword = AsyncHandler(async (req, res) => {
+  const { email } = req.body;
+  if (!email) throw new ApiError(409, "invalid fields");
+
+  const user = await User.findOne({ email }).select("-password");
+  if (!user) throw new ApiError(404, "Invalid credentials");
+
+  const resetToken = crypto.randomBytes(32).toString("hex");
+
+  const hashedToken = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex");
+
+  user.resetPasswordToken = hashedToken;
+  user.resetPasswordExpiry = Date.now() + 15 * 60 * 1000; // 15 min
+
+  await user.save({ validateBeforeSave: false });
+
+  // 3. Password reset link
+  const resetURL = `${process.env.CLIENT_APP_URL}/api/v1/users/reset-password/${resetToken}`;
+
+  // TODO: send email here
+  const emailData = {
+    subject: "Reset Your Password - Auth App",
+    text: `
+Hi ${user.name},
+
+We received a request to reset your password for your Auth App account.
+
+To reset your password, click the link below:
+
+${resetURL}
+
+This link is valid for 15 minutes.
+
+If you did NOT request this, ignore this email.
+
+Thanks,
+Auth App Team
+`,
+  };
+  await sendEmail(email, emailData);
+  console.log("Password reset link:", resetURL);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Password reset link sent to your email"));
+});
+
+const resetPassword = AsyncHandler(async (req, res) => {
+  const { token } = req.params;
+  const { newPassword } = req.body;
+
+  if (!token) throw new ApiError(400, "Token missing");
+  if (!newPassword) throw new ApiError(400, "password required");
+
+  const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+  const user = await User.findOne({
+    resetPasswordToken: hashedToken,
+    resetPasswordExpiry: { $gt: Date.now() },
+  });
+
+  if (!user) throw new ApiError(404, "Token invalid or expired");
+
+  user.password = await bcrypt.hash(newPassword, 10);
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpiry = undefined;
+
+  await user.save();
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Password reset successfully"));
+});
+export {
+  registerUser,
+  loginUser,
+  logoutUser,
+  regenerateAccessToken,
+  forgotPassword,
+  resetPassword,
+};

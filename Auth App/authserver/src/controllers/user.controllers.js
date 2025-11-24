@@ -45,7 +45,7 @@ const generateAccessAndRefreshToken = async (userId, req) => {
   }
 };
 
-const registerUser = AsyncHandler(async (req, res) => {
+const registerUser = AsyncHandler(async (req, res, next) => {
   const { name, email, username, password } = req.body;
 
   if (!name || !email || !username || !password)
@@ -67,12 +67,14 @@ const registerUser = AsyncHandler(async (req, res) => {
   const returnUser = user.toObject();
   delete returnUser.password;
 
+  req.user = returnUser;
+  next();
   return res
     .status(201)
     .json(new ApiResponse(201, returnUser, "User registered successfully"));
 });
 
-const loginUser = AsyncHandler(async (req, res) => {
+const loginUser = AsyncHandler(async (req, res, next) => {
   const { email, password, username } = req.body;
   if ((!email && !username) || !password)
     throw new ApiError(400, "Email/Username and password are required");
@@ -95,6 +97,8 @@ const loginUser = AsyncHandler(async (req, res) => {
 
   const safeUser = user.toObject();
   delete safeUser.password;
+  req.user = safeUser;
+  next();
   return res
     .status(200)
     .cookie("accessToken", AccessToken, cookieOptions)
